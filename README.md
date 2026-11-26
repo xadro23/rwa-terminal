@@ -1,3 +1,5 @@
+**Live demo:** https://xadro23.github.io/rwa-terminal/ &nbsp;•&nbsp; **Repo:** https://github.com/xadro23/rwa-terminal
+
 # RWA Terminal
 
 A live view of tokenized **Real-World Assets** (tokenized stocks, commodities, treasuries, ETFs, real estate) built entirely on the **CoinMarketCap Pro API's new `/v5/real-world-assets/*` endpoint suite**.
