@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RWA Terminal — CoinMarketCap Real World Assets</title>
+<style>
+:root{--bg:#0b0e14;--card:#121826;--line:#1f2937;--tx:#e5e7eb;--dim:#94a3b8;--acc:#f0b90b;--grn:#34d399;--red:#f87171}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--tx);font:14px/1.5 ui-monospace,'JetBrains Mono',Menlo,monospace;padding:24px}
+h1{font-size:20px;letter-spacing:1px}
+h1 span{color:var(--acc)}
+.sub{color:var(--dim);margin:6px 0 22px;font-size:12px}
+.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));margin-bottom:22px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.card .lbl{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:1px}
+.card .val{font-size:22px;margin-top:4px}
+.card .val.green{color:var(--grn)}
+.bar{height:8px;border-radius:4px;background:var(--line);overflow:hidden;margin-top:6px}
+.bar>i{display:block;height:100%;background:var(--acc)}
+h2{font-size:13px;color:var(--acc);text-transform:uppercase;letter-spacing:2px;margin:26px 0 10px}
+table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+th{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:1px;text-align:left;padding:10px 12px;border-bottom:1px solid var(--line)}
+td{padding:9px 12px;border-bottom:1px solid var(--line);font-size:13px}
+tr:last-child td{border-bottom:none}
+td.num,th.num{text-align:right}
+.pos{color:var(--grn)}.neg{color:var(--red)}
+.typechip{display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid var(--line);font-size:11px;color:var(--dim)}
+footer{margin-top:30px;color:var(--dim);font-size:11px}
+a{color:var(--acc);text-decoration:none}
+.tabs{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+button{background:var(--card);border:1px solid var(--line);color:var(--tx);padding:6px 14px;border-radius:8px;cursor:pointer;font:inherit}
+button.on{border-color:var(--acc);color:var(--acc)}
+@media(max-width:700px){td,th{padding:6px 8px}}
+</style>
+</head>
+<body>
+<h1>RWA <span>TERMINAL</span></h1>
+<div class="sub">Live view of tokenized Real-World Assets via the CoinMarketCap Pro API (<code>/v5/real-world-assets/*</code>). Built for the Build with CMC API Hackathon — Round 2.</div>
+
+<div class="grid" id="stats"></div>
+
+<h2>Issuer dominance — who holds the tokenized world</h2>
+<table id="issuerTable"></table>
+
+<h2>Top assets by tokenized market cap</h2>
+<div class="tabs" id="typeTabs"></div>
+<table id="assetTable"></table>
+
+<h2>Premium / discount scanner — per-token deviation vs aggregate</h2>
+<div class="sub">Every token priced against its asset's tokenized aggregate. Deviations are where tokenized markets dislocate from each other.</div>
+<table id="spreadTable"></table>
+
+<footer id="foot"></footer>
+
+<script>
+const D = __DATA__;
+const usd = x => x>=1e9?`$${(x/1e9).toFixed(2)}B`:x>=1e6?`$${(x/1e6).toFixed(2)}M`:x>=1e3?`$${(x/1e3).toFixed(1)}K`:`$${x.toFixed(2)}`;
+const cls = d => d>=0?'pos':'neg';
+const f = d => (d>=0?'+':'')+d.toFixed(2)+'%';
+
+// stats
+const totalMcap = Object.values(D.types).reduce((s,t)=>s+t.mcap,0);
+const totalVol  = Object.values(D.types).reduce((s,t)=>s+t.vol,0);
+const topType = Object.entries(D.types).sort((a,b)=>b[1].mcap-a[1].mcap)[0];
+document.getElementById('stats').innerHTML = `
+<div class="card"><div class="lbl">Tracked RWA assets</div><div class="val">${D.total_assets.toLocaleString()}</div></div>
+<div class="card"><div class="lbl">Tokenized market cap</div><div class="val green">${usd(totalMcap)}</div></div>
+<div class="card"><div class="lbl">24h tokenized volume</div><div class="val">${usd(totalVol)}</div></div>
+<div class="card"><div class="lbl">Dominant asset class</div><div class="val">${topType[0]}<div class="bar"><i style="width:${(topType[1].mcap/totalMcap*100).toFixed(0)}%"></i></div></div></div>`;
+
+// issuer dominance
+document.getElementById('issuerTable').innerHTML = `<tr><th>#</th><th>Issuer</th><th class="num">Tokenized MCAP</th><th class="num">Tokens</th><th class="num">Assets</th></tr>` +
+ D.issuers.map((i,x)=>`<tr><td>${x+1}</td><td>${i.name}</td><td class="num">${usd(i.mcap)}</td><td class="num">${i.n_tokens}</td><td class="num">${i.n_assets}</td></tr>`).join('');
+
+// asset table with type filter
+let curType = 'ALL';
+const types = ['ALL', ...Object.keys(D.types).sort((a,b)=>D.types[b].mcap-D.types[a].mcap)];
+document.getElementById('typeTabs').innerHTML = types.map(t=>`<button data-t="${t}" class="${t==='ALL'?'on':''}">${t}</button>`).join('');
+document.getElementById('typeTabs').addEventListener('click',e=>{
+  if(e.target.dataset.t){curType=e.target.dataset.t;
+    document.querySelectorAll('#typeTabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===curType));renderAssets();}
+});
+function renderAssets(){
+  const rows = D.assets.filter(a=>curType==='ALL'||a.asset_type===curType).slice(0,25);
+  document.getElementById('assetTable').innerHTML = `<tr><th>#</th><th>Symbol</th><th>Name</th><th>Type</th><th class="num">MCAP</th><th class="num">Vol 24h</th><th class="num">Price</th></tr>`+
+   rows.map(a=>`<tr><td>${a.rwa_rank??'-'}</td><td><b>${a.symbol}</b></td><td>${a.name}</td><td><span class="typechip">${a.asset_type}</span></td><td class="num">${usd(a.tokenized_market_cap||0)}</td><td class="num">${usd(a.tokenized_volume_24h||0)}</td><td class="num">${(a.average_tokenized_price||0).toLocaleString(undefined,{maximumFractionDigits:2})}</td></tr>`).join('');
+}
+renderAssets();
+
+// spread scanner
+document.getElementById('spreadTable').innerHTML = `<tr><th>Asset</th><th>Token</th><th>Issuer</th><th class="num">Price</th><th class="num">Deviation</th><th class="num">Token MCAP</th></tr>`+
+ D.spreads.map(s=>`<tr><td>${s.asset_name} (${s.asset})</td><td><b>${s.token}</b></td><td>${s.issuer}</td><td class="num">${s.price.toLocaleString(undefined,{maximumFractionDigits:2})}</td><td class="num ${cls(s.dev)}">${f(s.dev)}</td><td class="num">${usd(s.mcap)}</td></tr>`).join('') ||
+ `<tr><td colspan="6">No meaningful deviations right now — tokenized markets are tight.</td></tr>`;
+
+document.getElementById('foot').innerHTML =
+ `Data: CoinMarketCap Pro API, /v5/real-world-assets/assets/list + quotes/latest + issuers/list + /v1/key/info &nbsp;•&nbsp;
+  generated ${D.generated} &nbsp;•&nbsp; plan: ${D.key.plan_monthly} credits/mo, used ${D.key.used}, left ${D.key.left.toLocaleString()} &nbsp;•&nbsp;
+  <a href="https://github.com/">repo</a>`;
+</script>
+</body>
+</html>
